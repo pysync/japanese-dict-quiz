@@ -4,7 +4,6 @@ import readline from 'readline';
 import { readFile, readdir, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 
 
-
 const _pr = console.log
 const _c = {
     reset: '\x1b[0m',
