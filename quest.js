@@ -1,9 +1,96 @@
-import program from 'commander';
+import _ from 'lodash';
+import sqlite3 from 'sqlite3';
 import readline from 'readline';
 import { readFile, readdir, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
-import _ from 'lodash';
-const _pr = console.log
 
+
+
+const _pr = console.log
+const _c = {
+    reset: '\x1b[0m',
+    underscore: '\x1b[4m',
+    fgBlack: '\x1b[30m',
+    fgRed: '\x1b[31m',
+    fgGreen: '\x1b[32m',
+    fgBlue: '\x1b[34m',
+    fgWhite: '\x1b[37m',
+    bgBlack: '\x1b[40m',
+    bgRed: '\x1b[41m',
+    bgGreen: '\x1b[42m',
+    bgBlue: '\x1b[44m',
+    bgWhite: '\x1b[47m',
+}
+
+const isKanji = (str) => /^[\u4e00-\u9faf]+$/.test(str)
+
+const datapath    = __dirname + '/data/japanese_vietnamese.sqlite';
+const jvdb    = new sqlite3.Database(datapath);
+const jvtable = 'japanese_vietnamese';
+
+const searchWord = (word, onResult, onError) => {
+    const fields = _.map([['word', 'word'], 
+                          ['content', 'content']], (field) => field.join(' as ')).join(', ');
+    
+    const query = `select ${fields} from ${jvtable} where word = '${word}' limit 10`;
+    
+    const wordProcess = (content) => {
+        if (_.isEmpty(content)) return '';
+        
+        if (!_.includes(content, '◆')) {
+            return content;
+        }
+        return content.split('◆').join('\n\n意味')
+                      .split('※').join('\n\n例文：')
+                      .split(':').join('\n翻訳：')
+    }
+
+    const summary = (content) => {
+        if (_.isEmpty(content)) return '';
+        
+        if (!_.includes(content, '◆')) {
+            return content;
+        }
+
+        const lines = content.split('◆')
+        const phontic = _.trim(lines[0].replace('∴「', '').replace(/」.*/, ''));
+        
+        const means = []
+        for (let i = 1; i < lines.length - 1; i++) {
+            const parts = lines[i].split('※');
+            if (parts.length > 1) {
+                means.push(_.trim(parts[0]));
+            }
+        }
+        return {
+            phontic: phontic,
+            means: means
+        }
+    }
+
+    jvdb.all(query, (err, results) => {
+        if (err) {
+            _pr('error: ', err);
+            if (onError) onError(err);
+            return;
+        }
+        if (_.isEmpty(results)) {
+            onResult([])
+        }
+        else {
+            const uniq = _.uniqBy(results, r => r.content);
+            const out = _.map(uniq, ({id, word, content}) => {
+                return {
+                    id,
+                    word,
+                    summary: summary(content),
+                    content: wordProcess(content)
+                }
+            });
+            onResult(out);
+        }
+    })
+}
+    
 const dataSet = {
     kanjiList: [],
     kotoba: [],
@@ -28,6 +115,20 @@ const session = loadSession();
 const saveSession = () => {
     writeFileSync(sessionFile, JSON.stringify(session));
 };
+
+const readKanjiDict = (fileName, onData) => {
+    // _pr(`========PROCESSING: ${fileName} ==========`);
+    return readFile(fileName, 'utf8', (err, data) => {
+        if (err) {
+            console.log(">>>", err);
+        }
+        else {
+            if (onData) {
+                onData(JSON.parse(data));
+            }
+        }
+    });
+}
 
 const loadDataInDirs = (dirs, tag, onData) => {
     const wait = _.map(dirs, (dir, index) => 1);
@@ -102,14 +203,20 @@ const eachQuest = (rl, count, total, quest, repeat, onAnswer) => {
     });
 }
 
-const endQuest = (quit) => {
-    _pr('End quest');
+const endQuest = (quit, lession) => {
+    if (lession) {
+        _pr('End quest: ', lession.key);
+    }
+    else {
+        _pr('End quest');
+    }
+    
     saveSession();
     if (!quit) {
         setTimeout(() => {
             _pr('')
             _pr('')
-            showLessions();
+            showLessions(lession);
             _pr('')
         }, 1);
     }
@@ -138,6 +245,7 @@ const toMean = (word) => {
     return '--'
 };
 
+/*
 const printKanji = (kanji) => {
     const { word,
         cn_mean,
@@ -166,11 +274,48 @@ const printKanji = (kanji) => {
         _pr(``)
     }
 }
+*/
+
+const printKanji = (kanji) => {
+    const { 
+        ComponentDetails,
+        Examples,
+        Word,
+        Id,
+        Level,
+        Mean,
+        Onyomi,
+        Kunyomi,
+        ImagePath,
+        GiaiNghia,
+        Freq,
+        Components,
+        StrokeCount   
+    } = kanji;
+
+    _pr(`KANJI: ${_c.fgGreen}${Word}${_c.reset} - ${_c.fgGreen}${Mean}${_c.reset}`)
+    _pr(`STRUCT: ${_c.fgGreen}`+_.map(ComponentDetails, (c)=> `${c.w || '-'}:${c.h || '-'}`).join(' | ') + `${_c.reset}`)
+
+    
+    _pr(`ON: ${_c.fgGreen}${Onyomi}${_c.reset}`)
+    _pr(`KUN: ${Kunyomi}`)
+
+    _pr(`STROKE: ${StrokeCount}`)
+    _pr(`JLPT: ${Level}`)
+    _pr(`Freq: ${Freq}`)
+    _pr('--')
+    _pr(`${GiaiNghia}`)
+    _pr('--')
+    _.each(Examples, e => {
+        _pr(`${e.w} ${e.p}  ${e.h}  ${e.m}`)
+    });
+    _pr('==')
+}
 
 const searchKanji = (text) => {
     _pr(`Search: ${text} / total ${dataSet.kanjiList.length} kanji list`)
     const kanji = _.find(dataSet.kanjiList, {
-        word: text
+        Word: text
     })
     return kanji;
 }
@@ -181,7 +326,7 @@ const printHintKanji = (quest) => {
     const text = (quest.question + quest.answer).replace('※', '');
     _pr('TEXT: ' + text);
     const kanjis = _.filter(text.split(''), (w) => {
-        return /^[\u4e00-\u9faf]+$/.test(w)
+        return isKanji(w)
     });
     _pr('漢字一覧: ' + kanjis);
 
@@ -209,6 +354,42 @@ const simpleKanjiFor = (word) => {
     }).join(' | ')
 };
 
+const printDetail = (quest) => {
+    _pr('');
+    _pr('DETAILS');
+    searchWord(quest.question, (results) => {
+        _pr('')
+        _pr(`Q: ${_c.fgGreen}${quest.question}${_c.reset}`);
+        if (_.isEmpty(results) || results.length === 0) {
+            _pr('<Empty>')
+            return;
+        }
+        _.each(results, r => {
+            _pr(r.summary.phontic)
+            _pr(r.summary.means.join(','))
+            _pr(r.content)
+        });
+    });
+   
+   const answers = quest.answer.split('※');
+    _.each(answers, (answer, index) => {
+        searchWord(answer, (results) => {
+
+            _pr('')
+            _pr(`A${index+1}: ${_c.fgGreen}${answer}${_c.reset}`);
+            if (_.isEmpty(results) || results.length === 0) {
+                _pr('<Empty>')
+                return;
+            }
+            _.each(results, r => {
+                _pr(r.summary.phontic)
+                _pr(r.summary.means.join(','))
+            });
+        });
+    });   
+    _pr('');
+}
+
 const printHint = (quest) => {
     const answers = quest.answer.split('※');
     const correct = parseInt(quest.correct);
@@ -216,7 +397,7 @@ const printHint = (quest) => {
 
     _pr('');
     _pr('WORD HINT');
-    _pr(`Q: ${quest.question}`)
+    _pr(`Q: ${_c.fgGreen}${quest.question}${_c.reset}`)
     if (questionKanji) {
         _pr(`(${questionKanji})`)
     }
@@ -236,18 +417,17 @@ const printHint = (quest) => {
 };
 
 const goodJobs = [
-    '素晴らしい！❤️',
-    'すごい！💓',
-    '日本人ですか！(◎_◎;)',
-    '神！！！！🎶',
-    '完璧Σ（・□・；）',
-    '正解🙆',
+    `${_c.fgGreen}素晴らしい！❤️${_c.reset}`,
+    `${_c.fgGreen}すごい！💓${_c.reset}`,
+    `${_c.fgGreen}日本人ですか！(◎_◎;)${_c.reset}`,
+    `${_c.fgGreen}神！！！！🎶${_c.reset}`,
+    `${_c.fgGreen}完璧Σ（・□・；）${_c.reset}`,
+    `${_c.fgGreen}正解🙆${_c.reset}`,
 ]
 
 const badJobs = [
-    '残念！️😞',
-    '違います',
-    'No No No',
+    `${_c.fgRed}残念！️😞${_c.reset}`,
+    `${_c.fgRed}違います${_c.reset}`,
 ]
 
 const showEmotion = (correct) => {
@@ -255,7 +435,7 @@ const showEmotion = (correct) => {
     if (correct) {
         const rand = _.random(0, goodJobs.length - 1);
         _pr(`---------${goodJobs[rand]}  ----------`);
-        _pr(`---------NEXT=> ----------`);
+        _pr(`---------${_c.fgBlue}NEXT=>${_c.reset} ----------`);
     }
     else {
         const rand = _.random(0, badJobs.length - 1);
@@ -264,13 +444,18 @@ const showEmotion = (correct) => {
     }
 }
 
-const handleAnswer = (quest, answer, next) => {
+const handleAnswer = (quest, input, next) => {
     let correct = false;
     let hint = false;
+    const answer = _.trim(input);
     const answers = quest.answer.split('※');
 
     if (answer === 'h' || answer === 'help' || answer === 'hint') {
         printHint(quest);
+        hint = true;
+    }
+    if (answer === 'd' || answer === 'detail' || answer === 'dict') {
+        printDetail(quest);
         hint = true;
     }
     else if (answer === 'k' || answer === 'kanji') {
@@ -337,7 +522,7 @@ const beginQuest = (quests, lession) => {
             clearInterval(interval);
             rl.close();
             updatSession();
-            endQuest();
+            endQuest(false, lession);
             return;
         }
         if (wait) {
@@ -382,8 +567,14 @@ const beginQuest = (quests, lession) => {
 
 }
 
+const MENU = 'MENU'
+const QUIZ = 'QUIZ'
+const ui = {
+    screen: MENU
+};
 
-const showLessions = () => {
+
+const showLessions = (lastLession) => {
 
     const data = {
         topics: []
@@ -423,7 +614,7 @@ const showLessions = () => {
     _pr('')
 
     _.each(data.topics, (t) => {
-        _pr(`[${t.id}]${t.name} [0 -> ${t.lessions.length}]`)
+        _pr(`${t.name} [${t.id}][0 -> ${t.lessions.length}]`)
     });
     _pr('')
 
@@ -433,12 +624,31 @@ const showLessions = () => {
     });
 
     const please = () => {
-        rl.question('選択(例えば：0_15)： ', (answer) => {
+        rl.question('選択(例えば：0_15)： ', (input) => {
+            let answer = _.trim(input);
             if (answer === 'q' || answer === 'quit') {
                 rl.close();
                 _pr('See you again!');
                 return;
             };
+            
+            if (answer === 'n' || answer === 'ん') {
+                if (lastLession) {
+                    answer = `${lastLession.topicId}_${lastLession.lessionId+1}`;
+                }
+                else if (session && session.working && session.working.key) {
+                    answer = `${session.working.topicId}_${session.working.lessionId+1}`;
+                }
+            }
+
+            if (answer === 'b') {
+                if (lastLession) {
+                    answer = `${lastLession.topicId}_${lastLession.lessionId-1}`;
+                }
+                else if (session && session.working && session.working.key) {
+                    answer = `${session.working.topicId}_${session.working.lessionId-1}`;
+                }
+            }
 
             if (!answer || answer.split('_').length !== 2) {
                 _pr('>>> 授業ID正しくありません')
@@ -446,6 +656,7 @@ const showLessions = () => {
                 please();
                 return;
             }
+
             const topicId = answer.split('_')[0]
             const lessionId = answer.split('_')[1]
             const topic = data.topics[topicId]
@@ -540,8 +751,15 @@ const tryLoadLastSession = () => {
     }
 }
 
-preLoadData(() => {
+// preLoadData(() => {
+//     if (!tryLoadLastSession()) {
+//         showLessions();
+//     }
+// })
+readKanjiDict('data/kanji.json', (data) => {
+    dataSet['kanjiList'] = data;
+    _pr('loaded kanji dict: ', data.length);
     if (!tryLoadLastSession()) {
         showLessions();
     }
-})
+});
