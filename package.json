@@ -3,8 +3,14 @@
     "babel-preset-stage-2": "^6.22.0",
     "cli-table": "^0.3.1",
     "colors": "^1.1.2",
+    "micro": "^7.3.0",
+    "prompt-sync": "^4.1.4",
+    "prompt-sync-history": "^1.0.1",
+    "readline-sync": "^1.4.7",
     "sqlite": "^2.5.0",
-    "sqlite3": "^3.1.8"
+    "sqlite3": "^3.1.8",
+    "syncprompt": "^1.0.3",
+    "then-sleep": "^1.0.1"
   },
   "devDependencies": {
     "babel-cli": "^6.24.0",
@@ -12,6 +18,8 @@
   },
   "main": "quiz.js",
   "scripts": {
-    "start": "nodemon quiz.js --exec babel-node --presets es2015,stage-2"
+    "start": "nodemon quiz.js --exec node",
+    "start-babl": "nodemon quiz.js --exec babel-node --presets es2015,stage-2",
+    "start-api": "nodemon index.js --exec micro index"
   }
 }
