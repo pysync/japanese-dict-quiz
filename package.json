@@ -10,8 +10,9 @@
     "sync-request": "^4.0.1",
     "syncprompt": "^1.0.3"
   },
-  "main": "quiz.js",
+  "main": "cli.js",
   "scripts": {
-    "start": "nodemon cli.js --exec node"
+    "start": "node cli.js",
+    "dev": "nodemon cli.js"
   }
 }
