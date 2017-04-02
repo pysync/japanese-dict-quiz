@@ -1,1 +1,7 @@
 node_modules
+._.DS_Store
+.session.json
+assets/*.zip
+assets/dict/
+assets/quiz/
+assets/n2kj/

@@ -5,7 +5,10 @@ const prompt = require('syncprompt');
 const colors = require('colors');
 const Table = require('cli-table');
 const util  = require('util');
-const request = require('sync-request');
+const syncrequest = require('sync-request');
+var request = require('request');
+var progress = require('request-progress');
+const decompress = require('decompress');
 
 const _pr = console.log;
 const debug = console.debug;
@@ -26,12 +29,64 @@ colors.setTheme({
 
 const Config = {
     SS_FN: __dirname + '/.session.json',
-    QUIZ_DIR: __dirname + '/data/quest',
-    EMO_FN: __dirname + '/data/emotion.json',
-    JVD_FN: __dirname + '/data/japanese_vietnamese.json',
-    KJD_FN: __dirname + '/data/kanji.json',
+    QUIZ_DIR: __dirname + '/assets/quiz',
+    EMO_FN: __dirname + '/assets/config/emotion.json',
+    JVD_FN: __dirname + '/assets/dict/japanese_vietnamese.json',
+    KJD_FN: __dirname + '/assets/dict/kanji.json',
     LIMIT: 5,
+    DOWNLOAD_DES: __dirname + '/assets',
+    FETCH_DATA_PATH: 'http://dungntnew.github.io/assets',
+    FETCH_DATA_DIRS: ['dict', 'quiz'],
     GG_URL: 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=bd&dj=1&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=at&sl=%s&tl=%s&q=%s',
+}
+
+class DataFetcher extends Object {
+    constructor() {
+        super();
+    }
+
+    needFetchDirs() {
+        const dirs = [];
+        Config.FETCH_DATA_DIRS.forEach(d => {
+            if (!fs.existsSync(Config.DOWNLOAD_DES + '/' + d)){
+                dirs.push(d);
+            }
+        });
+        return dirs;
+    };
+
+    startFetch(dirs, onUpdate, onComplete) {
+        const downloaders = _.map(dirs, (dir => {
+            const downloadUrl = Config.FETCH_DATA_PATH + '/' + dir + '.zip';
+            const savePath = Config.DOWNLOAD_DES + '/' + dir + '.zip';
+            
+            return new Promise((resove, reject)=> {
+
+                progress(request(downloadUrl), {
+                    throttle: 10, 
+                })
+                .on('progress', function (state) {
+                    onUpdate(state);
+                })
+                .on('error', function (err) {
+                    reject(err)
+                })
+                .on('end', function () {
+                    decompress(savePath, Config.DOWNLOAD_DES).then(files => {
+                        resove(files);
+                    });
+                })
+                .pipe(fs.createWriteStream(savePath));
+            });
+        }));
+
+        Promise.all(downloaders).then((files) => {
+            if (onComplete) {
+                onComplete();
+            }
+        });
+     }
+
 }
 
 class Dict extends Object {
@@ -158,7 +213,7 @@ class Dict extends Object {
         }
         const url       = util.format(Config.GG_URL, sl, tl, q);
         
-        const res = request('GET', url, {
+        const res = syncrequest('GET', url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36',
                 'Content-Type': 'application/json; charset=utf-8',
@@ -251,7 +306,7 @@ class UI extends Object {
         this.out(str.underline.red);
     }
     qav(k, v) {
-        this.out(`${k}`.input + `${v}`.blue);
+        this.out(`${k}`.input + `${v}`.white);
     }
     akv(k, v) {
         this.out(`${k}`.input + `${v}`.red);
@@ -315,6 +370,14 @@ class UI extends Object {
     serving() {
         this._();
         this.silly('typing anything to request');
+    }
+
+    downloading(s) {
+        const {time, size, percent} = s;
+        const {elapsed, remaining} = time;
+        const {total, transferred} = size;
+        const progress = `elapsed=${elapsed} seconds,  ${Math.floor(percent * 100)}% [${transferred}bytes/${total}bytes]`;
+        this.i('fetching: ' + progress);
     }
 
     input(pmt = '> '.underline.red, options={}) {
@@ -678,7 +741,7 @@ class CLI extends Object {
         
         this.name = 'CLI';
         this.session = new Session();
-        this.dict = new Dict();
+        this.fetcher = new DataFetcher();
         
         this.ui = new UI();
 
@@ -751,8 +814,36 @@ class CLI extends Object {
     }
 
     start() {
-        this.tryRestore();
-        this.loop(this.handlers);
+        this.checkData(()=> {
+            this.initData();
+            this.tryRestore();
+            this.loop(this.handlers);
+        });
+    }
+
+    initData() {
+        this.dict = new Dict();
+    }
+
+    checkData(onComplete) {
+        const dirs = this.fetcher.needFetchDirs();
+        if (dirs.length > 0) {
+            const msg = `You need download ${dirs.join(',')} for first time usage`;
+            const ok = this.ui.yn(`${msg}\nYes to continue?[y/N]?`);
+            if (ok) {
+                this.fetcher.startFetch(dirs, (s)=> {
+                    this.ui.downloading(s)
+                }, ()=> {
+                    onComplete();
+                });
+            }
+            else {
+                this.quit();
+            }
+        }
+        else {
+            onComplete();
+        }
     }
 
     tryRestore() {
@@ -924,7 +1015,7 @@ class CLI extends Object {
                         this.kanji(kanjis.join(''));
                     }
                     else {
-                        this.ui.warn('No Kanji.');
+                        this.ui.red('No Kanji.');
                     }
                }  
            },
