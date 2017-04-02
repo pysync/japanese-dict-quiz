@@ -1,4 +1,4 @@
-
+'use strict';
 const _ = require('lodash');
 const fs = require('fs');
 const prompt = require('syncprompt');
@@ -332,6 +332,9 @@ class UI extends Object {
     }
     help(str) {
         this.out(str.help);
+    }
+    clear() {
+        this.out('\x1Bc');
     }
     msg(str) {
         this.out(str);
@@ -746,6 +749,7 @@ class CLI extends Object {
         this.ui = new UI();
 
         this.handlers = {
+            clear: this.clear.bind(this),
             menu: this.quizMenu.bind(this),
             quiz: this.quizMenu.bind(this),
             top: this.quizMenu.bind(this),
@@ -772,6 +776,10 @@ class CLI extends Object {
 
         this.lastInput = '';
     };
+
+    clear() {
+        this.ui.clear();
+    }
 
     help(handlers) {
         const keys = _.keys(handlers || this.handlers).filter(k => k.length > 1);
