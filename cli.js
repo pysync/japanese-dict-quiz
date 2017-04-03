@@ -5,6 +5,7 @@ const prompt = require('syncprompt');
 const colors = require('colors');
 const Table = require('cli-table');
 const util  = require('util');
+const moji = require('moji');
 const syncrequest = require('sync-request');
 var request = require('request');
 var progress = require('request-progress');
@@ -384,7 +385,10 @@ class UI extends Object {
     }
 
     input(pmt = '> '.underline.red, options={}) {
-        return _.trim(prompt(pmt, options));
+        let s = _.trim(prompt(pmt, options));
+        s = moji(s).convert('ZE', 'HE').toString();
+        s = moji(s).convert('ZS', 'HS').toString();
+        return s;
     }
 
     yn(msg) {
