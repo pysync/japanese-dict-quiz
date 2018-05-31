@@ -5,3 +5,4 @@ assets/*.zip
 assets/dict/
 assets/quiz/
 assets/n2kj/
+*.pm3

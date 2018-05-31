@@ -1,4 +1,8 @@
 {
+  "version": "0.0.1",
+  "name": "jquizcmd",
+  "email" : "dungntnew@gmail.com",
+  "url": "https://github.com/dungntnew/japanese-dict-quiz",
   "dependencies": {
     "cli-table": "^0.3.1",
     "colors": "^1.1.2",
