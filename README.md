@@ -83,7 +83,6 @@ quiz mod:
 
 ### Screenshoots
 
-![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s1.png "Usage..")
 ![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s5.png "Usage..")
 ![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s2.png "Usage..")
 ![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s3.png "Usage..")
