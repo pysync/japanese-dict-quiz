@@ -1,5 +1,5 @@
 
-![Preview](https://raw.githubusercontent.com/dungntnew/sady/6d232fadac558b760f96096c4986b9fc32349543/screenshoot.png "Usage..")
+![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s4.png "Usage..")
 
 ```bash
 >> jdict -> to start learn japanese  (๑˃̵ᴗ˂̵) 
@@ -50,8 +50,6 @@ for example:
 | pronounce | listen pronounce of word or sentence |
 | p | alias of pronounce |
 | info | show info of sentence, kanji, world |
-
-
 | exit | to quit |
 | quit | alias of exit  |
 | q | alias of quit |
@@ -83,11 +81,12 @@ quiz mod:
 | q | quit from quzi mod |
 
 
+### Screenshoots
 
-
-
-
-
+![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s1.png "Usage..")
+![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s5.png "Usage..")
+![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s2.png "Usage..")
+![Preview](https://raw.githubusercontent.com/dungntnew/japanese-dict-quiz/master/s3.png "Usage..")
 
 
 
