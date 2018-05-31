@@ -7,10 +7,11 @@ const Table = require('cli-table');
 const util  = require('util');
 const moji = require('moji');
 const syncrequest = require('sync-request');
-var request = require('request');
-var progress = require('request-progress');
+const request = require('request');
+const progress = require('request-progress');
 const decompress = require('decompress');
-
+const execSync = require('child_process').execSync;
+const token = require('./gtoken');
 const _pr = console.log;
 const debug = console.debug;
 
@@ -39,6 +40,7 @@ const Config = {
     FETCH_DATA_PATH: 'http://dungntnew.github.io/assets',
     FETCH_DATA_DIRS: ['dict', 'quiz'],
     GG_URL: 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&dt=bd&dj=1&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=at&sl=%s&tl=%s&q=%s',
+    GGS_URL: 'https://translate.google.com/translate_tts?ie=UTF-8&q=%s&tl=ja&total=1&idx=0&textlen=%s&tk=%s&client=t&prev=input',
 }
 
 class DataFetcher extends Object {
@@ -230,6 +232,38 @@ class Dict extends Object {
         }
 
         return ret;
+    }
+    
+    pronounce(str) {
+
+        const exec = (tk) => {
+        
+           const q = encodeURIComponent(str);
+           const url = util.format(Config.GGS_URL, q, str.length, tk);
+           const res = syncrequest('GET', url, {
+           });
+   
+           if (res.statusCode !== 200) {
+              console.log(url);
+              console.log(res);
+              console.error('Network Error!');
+   
+              endsound();
+              return;
+           }
+   
+           const audiofile = 'audio.mp3'; 
+           fs.writeFileSync(audiofile, res.body);
+           execSync(`mplayer ${audiofile}`, {stdio: 'ignore'});
+        }
+
+        const t = token.get(str);
+        if (t.value) {
+            exec(t.value);
+        }
+        else {
+            console.error('Network Error!');
+        }
     }
 }
 
@@ -762,7 +796,11 @@ class CLI extends Object {
 
             dict: this.search.bind(this),
             d: this.search.bind(this),
+            ds: (w) => this.search(w, true),
             t: this.trans.bind(this),
+            ts: (w) => this.trans(w, true),
+            p: this.sound.bind(this),
+            pronounce: this.sound.bind(this),
             
             kanji: this.kanji.bind(this),
             quick: this.quick.bind(this),
@@ -792,7 +830,6 @@ class CLI extends Object {
 
     loop(handlers, completeIf, before) {
         const run = ()=> {
-            
             if (before) before();
             
             const raw = this.ui.input();
@@ -912,28 +949,41 @@ class CLI extends Object {
     smart(input) {
         if (input && _.isString(input)) {
             if (input.length > 4) {
-                this.trans(input);
+                this.trans(input, true);
             }
             else if (input.length == 1) {
                 this.kanji(input);
             }
             else {
-                this.search(input);
+                this.search(input, true);
             }
         }
     }
 
-    search(word) {
+    search(word, a) {
         if (_.isEmpty(_.trim(word))) {
             return;
         }
         const r = this.dict.searchWord(word);
         this.ui.searchWordResults(word, r);
+
+        if (a) {
+            this.sound(word);
+        }
     }
 
-    trans(word) {
-        const r = this.dict.trans(word);
-        this.ui.transResult(word, r);
+    trans(word, a) {
+        try {
+          const r = this.dict.trans(word);
+          this.ui.transResult(word, r);
+
+          if (a) {
+              this.sound(word);
+          }
+        }
+        catch(e) {
+          this.ui.error('Network Error!');
+        }
     }
 
     kanji(word) {
@@ -970,6 +1020,15 @@ class CLI extends Object {
             }
         }
     }
+    
+    sound(word) {
+      try {
+         this.dict.pronounce(word);
+      }
+      catch(e) {
+        this.ui.error('Network Error!');
+      }
+    }
 
     gameStart(lessionInfo) {
 
@@ -991,9 +1050,16 @@ class CLI extends Object {
                    this.ui.quizR(this.quest, playing.curr, playing.total);
                } 
            },
-           t: (input) => {
+           
+           tq: (input) => {
                if (this.quest) {
                    this.trans(this.quest.question);
+               }
+           },
+
+           tqs: (input) => {
+               if (this.quest) {
+                   this.trans(this.quest.question, true);
                }
            },
 
@@ -1014,21 +1080,114 @@ class CLI extends Object {
                } 
            },
 
-           k: (input) => {
+           t: (input) => {
                if (this.quest) {
                    const {question} = this.quest
                    const {answer} = this.quest
+                   const answers = answer.split('※');
+                   const index = _.parseInt(input);
+                   
+                   // show for specifict answer or question or answer at.
+                   if (input === 'q') {
+                       this.trans(question);
+                   }
+                   else if (input === 'a') {
+                       _.each(answers, (a, i)=>{
+                           setTimeout(()=> {
+                               this.trans(a)
+                           }, 1000 * i);
+                       });
+                   }
+                   else if (index >= 0 && index < answers.length) {
+                       this.trans(answers[index]);
+                   }
+                   else {
+                       this.trans(input);
+                   }
+               }  
+           },
 
-                   const text = (question + answer).replace('※', '');
-                　　const kanjis = _.uniq(_.filter(text.split(''), (w) => {
-                        return this.dict.isKanji(w)
-                    }));
-                    if (kanjis.length > 0) {
-                        this.kanji(kanjis.join(''));
-                    }
-                    else {
-                        this.ui.red('No Kanji.');
-                    }
+           d: (input) => {
+               if (this.quest) {
+                   const {question} = this.quest
+                   const {answer} = this.quest
+                   const answers = answer.split('※');
+                   const index = _.parseInt(input);
+                   
+                   // show for specifict answer or question or answer at.
+                   if (input === 'q') {
+                       this.search(question);
+                   }
+                   else if (input === 'a') {
+                       _.each(answers, a => this.search(a));
+                   }
+                   else if (index >= 0 && index < answers.length) {
+                       this.search(answers[index]);
+                   }
+                   else {
+                       this.search(input);
+                   }
+               }  
+           },
+           
+           ds: (input) => {
+               if (this.quest) {
+                   const {question} = this.quest
+                   const {answer} = this.quest
+                   const answers = answer.split('※');
+                   const index = _.parseInt(input);
+                   
+                   // show for specifict answer or question or answer at.
+                   if (input === 'q') {
+                       this.search(question, true);
+                   }
+                   else if (input === 'a') {
+                       _.each(answers, a => this.search(a, true));
+                   }
+                   else if (index >= 0 && index < answers.length) {
+                       this.search(answers[index], true);
+                   }
+               }  
+           },
+
+           k: (input) => {
+               if (this.quest) {
+                   
+                   const {question} = this.quest
+                   const {answer} = this.quest
+                   const answers = answer.split('※');
+                   const index = _.parseInt(input);
+
+                   const filterKanji = (text) => {
+                       return _.uniq(_.filter(text.split(''), (w) => {
+                            return this.dict.isKanji(w)
+                        }));
+                   };
+
+                   const showKanjiFor = (text) => {
+                    　　const kanjis = filterKanji(text);
+                        if (kanjis.length > 0) {
+                            this.kanji(kanjis.join(''));
+                        }
+                        else {
+                            this.ui.red('No Kanji.');
+                        }
+                   }
+                   
+                   // show for specifict answer or question or answer at.
+                   if (input === 'q') {
+                       showKanjiFor(question);
+                   }
+                   else if (input === 'a') {
+                       showKanjiFor(answer.replace('※', ''));
+                   }
+                   else if (index >= 0 && index < answers.length) {
+                       showKanjiFor(answers[index]);
+                   }
+                   // show for all kanji found in question & answers.
+                   else {
+                       this.kanji(input);
+                   }
                }  
            },
 
