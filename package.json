@@ -1,7 +1,7 @@
 {
   "version": "0.0.1",
   "name": "jquizcmd",
-  "email" : "dungntnew@gmail.com",
+  "email": "dungntnew@gmail.com",
   "url": "https://github.com/dungntnew/japanese-dict-quiz",
   "dependencies": {
     "cli-table": "^0.3.1",
@@ -21,5 +21,8 @@
   "scripts": {
     "start": "node cli.js",
     "dev": "nodemon cli.js"
+  },
+  "bin": {
+    "jdict": "./cli.js"
   }
 }
