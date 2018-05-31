@@ -805,7 +805,6 @@ class CLI extends Object {
             pronounce: this.sound.bind(this),
             
             kanji: this.kanji.bind(this),
-            quick: this.quick.bind(this),
             info: this.kanji.bind(this),
             k: this.kanji.bind(this),
             
